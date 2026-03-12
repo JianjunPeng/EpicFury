@@ -32,7 +32,6 @@ fn main() {
             bullet_movement,
             enemy_movement,          // 新增
             spawn_enemies,           // 新增
-            despawn_bullets_out_of_screen,  // 新增
         ))
         .run();
 }
@@ -145,15 +144,26 @@ fn player_shoot(
 
 // 2. 子弹移动系统
 fn bullet_movement(
-    mut query: Query<(&Velocity, &mut Transform), With<Bullet>>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Transform), With<Bullet>>,
     time: Res<Time>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let speed = 600.0;  // 子弹速度（比飞机快很多）
+    let speed = 600.0;
     let delta = time.delta_secs();
 
-    for (velocity, mut transform) in &mut query {
-        transform.translation.x += velocity.direction.x * speed * delta;
-        transform.translation.y += velocity.direction.y * speed * delta;
+    if let Ok(window) = window_query.single() {
+        let half_height = window.height() / 2.0;
+        let margin = 50.0;  // 和敌人保持一致
+
+        for (entity, mut transform) in &mut query {
+            transform.translation.y += speed * delta;  // 子弹向上
+
+            // 飞出顶部就销毁
+            if transform.translation.y > half_height + margin {
+                commands.entity(entity).despawn();
+            }
+        }
     }
 }
 
@@ -190,27 +200,22 @@ fn spawn_enemies(
 
 // 2. 敌人移动系统（向下掉）
 fn enemy_movement(
-    mut query: Query<&mut Transform, With<Enemy>>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Transform), With<Enemy>>,
     time: Res<Time>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
     let speed = 180.0;
     let delta = time.delta_secs();
 
-    for mut transform in &mut query {
-        transform.translation.y -= speed * delta;
-    }
-}
-
-// 3. 子弹飞出屏幕自动销毁
-fn despawn_bullets_out_of_screen(
-    mut commands: Commands,
-    query: Query<(Entity, &Transform), With<Bullet>>,
-    window_query: Query<&Window, With<PrimaryWindow>>,
-) {
     if let Ok(window) = window_query.single() {
         let half_height = window.height() / 2.0;
-        for (entity, transform) in &query {
-            if transform.translation.y > half_height + 50.0 {  // 超出顶部一点就删
+        let margin = 50.0;  // 飞出一点再删，避免边缘抖动
+
+        for (entity, mut transform) in &mut query {
+            transform.translation.y -= speed * delta;
+
+            if transform.translation.y < -half_height - margin {
                 commands.entity(entity).despawn();
             }
         }
