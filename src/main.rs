@@ -12,6 +12,9 @@ struct Velocity {
     direction: Vec2,  // 单位向量 × 速度
 }
 
+#[derive(Component)]
+struct ShootTimer(Timer);  // 射击冷却计时器
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -41,6 +44,7 @@ fn setup(mut commands: Commands) {
         Visibility::Visible,                    // 或用 InheritedVisibility 等
         ViewVisibility::default(),              // 渲染可见性（旧版自动带的）
         Player,
+        ShootTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),  // 每 0.15 秒可射一次
     ));
 }
 
@@ -97,28 +101,34 @@ fn player_movement(
 // 1. 射击系统（只在按下空格时触发一次）
 fn player_shoot(
     keyboard: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
     mut commands: Commands,
-    query: Query<&Transform, With<Player>>,
+    mut query: Query<(&Transform, &mut ShootTimer), With<Player>>,
 ) {
-    if keyboard.just_pressed(KeyCode::Space) {
-        if let Ok(player_transform) = query.single() {
-            let spawn_pos = player_transform.translation + Vec3::new(0.0, 30.0, 0.0); // 子弹从飞机上方一点生成
+    if let Ok((player_transform, mut shoot_timer)) = query.single_mut() {
+        // 计时器每帧 tick
+        shoot_timer.0.tick(time.delta());
+
+        // 按住空格 且 冷却结束 → 射击
+        if keyboard.pressed(KeyCode::Space) && shoot_timer.0.is_finished() {
+            let spawn_pos = player_transform.translation + Vec3::new(0.0, 30.0, 0.0);
 
             commands.spawn((
                 Sprite {
-                    color: Color::srgb(1.0, 0.3, 0.3),  // 红色
-                    custom_size: Some(Vec2::new(8.0, 24.0)),  // 细长子弹
+                    color: Color::srgb(1.0, 0.3, 0.3),
+                    custom_size: Some(Vec2::new(8.0, 24.0)),
                     ..default()
                 },
                 Transform::from_translation(spawn_pos),
                 GlobalTransform::default(),
                 Visibility::Visible,
                 ViewVisibility::default(),
-                Velocity {
-                    direction: Vec2::new(0.0, 1.0),  // 向上
-                },
+                Velocity { direction: Vec2::new(0.0, 1.0) },
                 Bullet,
             ));
+
+            // 重置计时器（从 0.15 秒开始倒计时）
+            shoot_timer.0.reset();
         }
     }
 }
