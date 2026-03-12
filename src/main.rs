@@ -351,10 +351,12 @@ fn player_enemy_collision(
                                     position_type: PositionType::Absolute,
                                     left: Val::Percent(50.0),
                                     top: Val::Percent(50.0),
+                                    margin: UiRect {
+                                        left: Val::Px(-200.0),  // 往左移 200px（负值左移）
+                                        ..default()
+                                    },
                                     ..default()
                                 },
-                                // 用 Transform 来偏移（负一半文本的粗估宽度/高度）
-                                Transform::from_translation(Vec3::new(-200.0, -40.0, 0.0)),  // 调整这两个数字来微调位置
                                 GlobalTransform::default(),
                                 Visibility::Visible,
                                 ViewVisibility::default(),
