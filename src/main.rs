@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use rand::Rng;
 
 #[derive(Component)]
 struct Player;
@@ -15,15 +16,23 @@ struct Velocity {
 #[derive(Component)]
 struct ShootTimer(Timer);  // 射击冷却计时器
 
+// = = = = = = = = = = = Enemy
+#[derive(Component)]
+struct Enemy;
+#[derive(Resource)]
+struct EnemySpawnTimer(Timer);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, player_movement)
         .add_systems(Update, (
             player_movement,
             player_shoot,
             bullet_movement,
+            enemy_movement,          // 新增
+            spawn_enemies,           // 新增
+            despawn_bullets_out_of_screen,  // 新增
         ))
         .run();
 }
@@ -46,6 +55,7 @@ fn setup(mut commands: Commands) {
         Player,
         ShootTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),  // 每 0.15 秒可射一次
     ));
+    commands.insert_resource(EnemySpawnTimer(Timer::from_seconds(1.2, TimerMode::Repeating))); // 每 1.2 秒产生敌人
 }
 
 // 0. 玩家移动系统（使用上下左右键触发）
@@ -144,5 +154,65 @@ fn bullet_movement(
     for (velocity, mut transform) in &mut query {
         transform.translation.x += velocity.direction.x * speed * delta;
         transform.translation.y += velocity.direction.y * speed * delta;
+    }
+}
+
+// 1. 敌人生成系统（随机 x 位置）
+fn spawn_enemies(
+    time: Res<Time>,
+    mut timer: ResMut<EnemySpawnTimer>,
+    mut commands: Commands,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    timer.0.tick(time.delta());
+
+    if timer.0.just_finished() {
+        if let Ok(window) = window_query.single() {
+            let half_width = window.width() / 2.0;
+            let spawn_x = rand::thread_rng().gen_range(-half_width + 30.0..half_width - 30.0);
+
+            commands.spawn((
+                Sprite {
+                    color: Color::srgb(0.0, 0.8, 0.3),  // 绿色敌人
+                    custom_size: Some(Vec2::new(40.0, 40.0)),
+                    ..default()
+                },
+                Transform::from_xyz(spawn_x, window.height() / 2.0 + 50.0, 0.0),  // 从顶部上方生成
+                GlobalTransform::default(),
+                Visibility::Visible,
+                ViewVisibility::default(),
+                Velocity { direction: Vec2::new(0.0, -1.0) },
+                Enemy,
+            ));
+        }
+    }
+}
+
+// 2. 敌人移动系统（向下掉）
+fn enemy_movement(
+    mut query: Query<&mut Transform, With<Enemy>>,
+    time: Res<Time>,
+) {
+    let speed = 180.0;
+    let delta = time.delta_secs();
+
+    for mut transform in &mut query {
+        transform.translation.y -= speed * delta;
+    }
+}
+
+// 3. 子弹飞出屏幕自动销毁
+fn despawn_bullets_out_of_screen(
+    mut commands: Commands,
+    query: Query<(Entity, &Transform), With<Bullet>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    if let Ok(window) = window_query.single() {
+        let half_height = window.height() / 2.0;
+        for (entity, transform) in &query {
+            if transform.translation.y > half_height + 50.0 {  // 超出顶部一点就删
+                commands.entity(entity).despawn();
+            }
+        }
     }
 }
