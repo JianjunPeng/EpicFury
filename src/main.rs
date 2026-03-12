@@ -31,6 +31,9 @@ struct ScoreText;
 #[derive(Component)]
 struct Explosion(Timer);
 
+#[derive(Resource, Default)]
+struct GameOver(bool);
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -41,6 +44,7 @@ fn main() {
             bullet_movement,
             enemy_movement,
             spawn_enemies,
+            player_enemy_collision,
             bullet_enemy_collision,
             update_score_ui,
             despawn_explosions,  // 已添加
@@ -93,15 +97,19 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.insert_resource(EnemySpawnTimer(Timer::from_seconds(1.2, TimerMode::Repeating)));
     commands.insert_resource(Score(0));
+    commands.insert_resource(GameOver(false));
 }
 
 fn player_movement(
     keyboard: Res<ButtonInput<KeyCode>>,
+    game_over: ResMut<GameOver>,
     mut query: Query<&mut Transform, With<Player>>,
     time: Res<Time>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let speed = 300.0;
+    if game_over.0 { return; }
+
+    let speed = 500.0;
     let delta = time.delta_secs();
     let player_half_size = 25.0;
 
@@ -136,9 +144,12 @@ fn player_movement(
 fn player_shoot(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    game_over: ResMut<GameOver>,
     mut commands: Commands,
     mut query: Query<(&Transform, &mut ShootTimer), With<Player>>,
 ) {
+    if game_over.0 { return; }
+
     if let Ok((player_transform, mut shoot_timer)) = query.single_mut() {
         shoot_timer.0.tick(time.delta());
         if keyboard.pressed(KeyCode::Space) && shoot_timer.0.is_finished() {
@@ -183,10 +194,13 @@ fn bullet_movement(
 
 fn spawn_enemies(
     time: Res<Time>,
+    game_over: ResMut<GameOver>,
     mut timer: ResMut<EnemySpawnTimer>,
     mut commands: Commands,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
+    if game_over.0 { return; }
+
     timer.0.tick(time.delta());
     if timer.0.just_finished() {
         if let Ok(window) = window_query.single() {
@@ -287,6 +301,71 @@ fn despawn_explosions(
         explosion.0.tick(time.delta());
         if explosion.0.is_finished() {
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn player_enemy_collision(
+    mut commands: Commands,
+    mut game_over: ResMut<GameOver>,
+    player_query: Query<(Entity, &Transform, &Sprite), With<Player>>,
+    enemy_query: Query<(Entity, &Transform, &Sprite), With<Enemy>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    if game_over.0 { return; }  // 已结束就不检测了
+
+    if let Ok((player_entity, player_transform, player_sprite)) = player_query.single() {
+        if let Some(p_size) = player_sprite.custom_size {
+            let p_min = player_transform.translation.truncate() - p_size / 2.0;
+            let p_max = player_transform.translation.truncate() + p_size / 2.0;
+
+            for (enemy_entity, enemy_transform, enemy_sprite) in &enemy_query {
+                if let Some(e_size) = enemy_sprite.custom_size {
+                    let e_min = enemy_transform.translation.truncate() - e_size / 2.0;
+                    let e_max = enemy_transform.translation.truncate() + e_size / 2.0;
+
+                    if p_min.x < e_max.x && p_max.x > e_min.x &&
+                       p_min.y < e_max.y && p_max.y > e_min.y {
+                        // 碰撞！游戏结束
+                        game_over.0 = true;
+
+                        // despawn 玩家和这个敌人
+                        commands.entity(player_entity).despawn();
+                        commands.entity(enemy_entity).despawn();
+
+                        // 显示 Game Over 文本（居中）
+                        if let Ok(_window) = window_query.single() {
+                            // 显示 Game Over 文本（尽量居中）
+                            commands.spawn((
+                                Text::new("GAME OVER"),
+                                TextFont {
+                                    font_size: 80.0,
+                                    ..default()
+                                },
+                                TextColor(Color::srgb(1.0, 0.2, 0.2)),
+                                TextLayout {
+                                    justify: Justify::Center,
+                                    ..default()
+                                },
+                                Node {
+                                    position_type: PositionType::Absolute,
+                                    left: Val::Percent(50.0),
+                                    top: Val::Percent(50.0),
+                                    ..default()
+                                },
+                                // 用 Transform 来偏移（负一半文本的粗估宽度/高度）
+                                Transform::from_translation(Vec3::new(-200.0, -40.0, 0.0)),  // 调整这两个数字来微调位置
+                                GlobalTransform::default(),
+                                Visibility::Visible,
+                                ViewVisibility::default(),
+                            ));
+                        }
+
+                        // 可以在这里加重启逻辑（后面再扩展）
+                        break;  // 只处理一次碰撞
+                    }
+                }
+            }
         }
     }
 }
