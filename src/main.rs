@@ -19,8 +19,24 @@ struct ShootTimer(Timer);  // 射击冷却计时器
 // = = = = = = = = = = = Enemy
 #[derive(Component)]
 struct Enemy;
+
 #[derive(Resource)]
 struct EnemySpawnTimer(Timer);
+
+
+// = = = = = = = = = = = Score
+#[derive(Resource, Default)]
+struct Score(u32);
+
+#[derive(Component)]
+struct ScoreText;
+
+
+// = = = = = = = = = = = Explosion
+#[derive(Component)]
+struct Explosion(Timer);
+
+
 
 fn main() {
     App::new()
@@ -31,19 +47,32 @@ fn main() {
             player_shoot,
             bullet_movement,
             enemy_movement,          // 新增
+            bullet_enemy_collision,
+            update_score_ui,
             spawn_enemies,           // 新增
         ))
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font_handle = asset_server.load("fonts/FiraSans-Bold.ttf");  // 放 assets/fonts 下
+
     // 2D 相机：现在直接 spawn Camera2d（其他组件自动补齐）
     commands.spawn(Camera2d::default());
 
     // 玩家飞机：用 Sprite + Transform + Visibility 等
     commands.spawn((
+        Text::new("Score: 0"),
+        TextFont {
+            font: font_handle,
+            font_size: 40.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+
+        // 玩家蓝色方块
         Sprite {
-            color: Color::srgb(0.0, 0.0, 1.0),  // 蓝色方块
+            color: Color::srgb(0.0, 0.0, 1.0),
             custom_size: Some(Vec2::new(50.0, 50.0)),
             ..default()
         },
@@ -54,7 +83,33 @@ fn setup(mut commands: Commands) {
         Player,
         ShootTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),  // 每 0.15 秒可射一次
     ));
+
+    // 得分记录
+    commands.spawn((
+        Text::new("Score: 0"),  // 现在 Text::new 直接接受字符串
+        TextFont {
+            font_size: 40.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        TextLayout {
+            justify: Justify::Left,
+            ..default()
+        },
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(10.0),
+            left: Val::Px(10.0),
+            ..default()
+        },
+        // 渲染必须的组件（UI 文本需要）
+        GlobalTransform::default(),
+        Visibility::Visible,
+        ViewVisibility::default(),
+        ScoreText,
+    ));
     commands.insert_resource(EnemySpawnTimer(Timer::from_seconds(1.2, TimerMode::Repeating))); // 每 1.2 秒产生敌人
+    commands.insert_resource(Score(0));
 }
 
 // 0. 玩家移动系统（使用上下左右键触发）
@@ -218,6 +273,72 @@ fn enemy_movement(
             if transform.translation.y < -half_height - margin {
                 commands.entity(entity).despawn();
             }
+        }
+    }
+}
+
+fn update_score_ui(
+    score: Res<Score>,
+    mut query: Query<&mut Text, With<ScoreText>>,
+) {
+    if let Ok(mut text) = query.single_mut() {
+        text.0 = format!("Score: {}", score.0);  // 直接改内部 String
+    }
+}
+
+fn bullet_enemy_collision(
+    mut commands: Commands,
+    mut score: ResMut<Score>,
+    bullet_query: Query<(Entity, &Transform, &Sprite), With<Bullet>>,
+    enemy_query: Query<(Entity, &Transform, &Sprite), With<Enemy>>,
+) {
+    for (bullet_entity, bullet_transform, bullet_sprite) in &bullet_query {
+        for (enemy_entity, enemy_transform, enemy_sprite) in &enemy_query {
+            if let (Some(b_size), Some(e_size)) = (bullet_sprite.custom_size, enemy_sprite.custom_size) {
+                let b_min = bullet_transform.translation.truncate() - b_size / 2.0;
+                let b_max = bullet_transform.translation.truncate() + b_size / 2.0;
+
+                let e_min = enemy_transform.translation.truncate() - e_size / 2.0;
+                let e_max = enemy_transform.translation.truncate() + e_size / 2.0;
+
+                // AABB 重叠检查（经典算法）
+                if b_min.x < e_max.x && b_max.x > e_min.x &&
+                   b_min.y < e_max.y && b_max.y > e_min.y {
+                    // 碰撞！销毁双方
+                    commands.entity(bullet_entity).despawn();
+                    commands.entity(enemy_entity).despawn();
+
+                    // 加分
+                    score.0 += 10;  // 可调
+
+                    // Explosion
+                    commands.spawn((
+                        Sprite {
+                            color: Color::srgb(1.0, 0.5, 0.0),  // 橙色爆炸
+                            custom_size: Some(Vec2::new(60.0, 60.0)),
+                            ..default()
+                        },
+                        Transform::from_translation(enemy_transform.translation),
+                        GlobalTransform::default(),
+                        Visibility::Visible,
+                        ViewVisibility::default(),
+                        Explosion(Timer::from_seconds(0.3, TimerMode::Once)),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn despawn_explosions(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Explosion)>,
+) {
+    for (entity, mut timer) in &mut query {
+        timer.0.tick(time.delta());
+        if timer.0.is_finished() {
+            commands.entity(entity).despawn();
         }
     }
 }
