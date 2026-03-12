@@ -4,11 +4,24 @@ use bevy::window::PrimaryWindow;
 #[derive(Component)]
 struct Player;
 
+#[derive(Component)]
+struct Bullet;
+
+#[derive(Component)]
+struct Velocity {
+    direction: Vec2,  // 单位向量 × 速度
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
         .add_systems(Update, player_movement)
+        .add_systems(Update, (
+            player_movement,
+            player_shoot,
+            bullet_movement,
+        ))
         .run();
 }
 
@@ -31,6 +44,7 @@ fn setup(mut commands: Commands) {
     ));
 }
 
+// 0. 玩家移动系统（使用上下左右键触发）
 fn player_movement(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut Transform, With<Player>>,
@@ -77,5 +91,48 @@ fn player_movement(
                 half_height - player_half_size,
             );
         }
+    }
+}
+
+// 1. 射击系统（只在按下空格时触发一次）
+fn player_shoot(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    query: Query<&Transform, With<Player>>,
+) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        if let Ok(player_transform) = query.single() {
+            let spawn_pos = player_transform.translation + Vec3::new(0.0, 30.0, 0.0); // 子弹从飞机上方一点生成
+
+            commands.spawn((
+                Sprite {
+                    color: Color::srgb(1.0, 0.3, 0.3),  // 红色
+                    custom_size: Some(Vec2::new(8.0, 24.0)),  // 细长子弹
+                    ..default()
+                },
+                Transform::from_translation(spawn_pos),
+                GlobalTransform::default(),
+                Visibility::Visible,
+                ViewVisibility::default(),
+                Velocity {
+                    direction: Vec2::new(0.0, 1.0),  // 向上
+                },
+                Bullet,
+            ));
+        }
+    }
+}
+
+// 2. 子弹移动系统
+fn bullet_movement(
+    mut query: Query<(&Velocity, &mut Transform), With<Bullet>>,
+    time: Res<Time>,
+) {
+    let speed = 600.0;  // 子弹速度（比飞机快很多）
+    let delta = time.delta_secs();
+
+    for (velocity, mut transform) in &mut query {
+        transform.translation.x += velocity.direction.x * speed * delta;
+        transform.translation.y += velocity.direction.y * speed * delta;
     }
 }
