@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use bevy::audio::{AudioPlayer, PlaybackSettings, Volume};
 use rand::Rng;
 
 #[derive(Component)]
@@ -33,6 +34,16 @@ struct Explosion(Timer);
 
 #[derive(Resource, Default)]
 struct GameOver(bool);
+
+#[derive(Component)]
+struct BackgroundMusic;
+
+#[derive(Resource, Clone)]
+struct GameSounds {
+//    shoot: Handle<AudioSource>,
+//    explosion: Handle<AudioSource>,
+    bgm: Handle<AudioSource>,
+}
 
 fn main() {
     App::new()
@@ -98,6 +109,20 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(EnemySpawnTimer(Timer::from_seconds(1.2, TimerMode::Repeating)));
     commands.insert_resource(Score(0));
     commands.insert_resource(GameOver(false));
+
+    // 加载音效 + BGM
+    let game_sounds = GameSounds {
+//        shoot: asset_server.load("sounds/shoot.ogg"),
+//        explosion: asset_server.load("sounds/explosion.ogg"),
+        bgm: asset_server.load("sounds/background.ogg"),
+    };    // 播放循环背景音乐（音量调低一些，避免盖过音效）
+    commands.insert_resource(game_sounds.clone());
+
+    commands.spawn((
+        AudioPlayer(game_sounds.bgm.clone()),
+        PlaybackSettings::LOOP.with_volume(Volume::Linear(0.35)),
+        BackgroundMusic,
+    ));
 }
 
 fn player_movement(
@@ -308,6 +333,7 @@ fn despawn_explosions(
 fn player_enemy_collision(
     mut commands: Commands,
     mut game_over: ResMut<GameOver>,
+    background_music_query: Query<Entity, With<BackgroundMusic>>,
     player_query: Query<(Entity, &Transform, &Sprite), With<Player>>,
     enemy_query: Query<(Entity, &Transform, &Sprite), With<Enemy>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
@@ -361,6 +387,10 @@ fn player_enemy_collision(
                                 Visibility::Visible,
                                 ViewVisibility::default(),
                             ));
+                        }
+                        // 停止 BGM
+                        for entity in &background_music_query {
+                            commands.entity(entity).despawn();
                         }
 
                         // 可以在这里加重启逻辑（后面再扩展）
