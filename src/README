@@ -1,0 +1,13 @@
+src/
+├── main.rs                // 入口，App 构建、插件注册、系统顺序
+├── components.rs          // 所有 #[derive(Component)] 的定义
+├── resources.rs           // Resource 定义（Score, GameOver等）
+├── systems/
+│   ├── player.rs          // player_movement, player_shoot
+│   ├── bullet.rs          // bullet_movement, player_shoot 的 spawn 部分
+│   ├── enemy.rs           // spawn_enemies, enemy_movement
+│   ├── collision.rs       // bullet_enemy_collision, player_enemy_collision
+│   ├── ui.rs              // update_score_ui, GameOver UI spawn
+│   ├── audio.rs           // 音效播放逻辑（如果独立出来）
+│   └── explosion.rs       // despawn_explosions（可选独立）
+└── lib.rs                 // 项目library
