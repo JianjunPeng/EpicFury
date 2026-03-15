@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::audio::{AudioPlayer, PlaybackSettings, Volume};
 use bevy::window::PrimaryWindow;
 use crate::components::*;
 use crate::resources::*;
@@ -50,6 +51,7 @@ pub fn player_shoot(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     game_over: ResMut<GameOver>,
+    game_sounds: Res<GameSounds>,
     mut commands: Commands,
     mut query: Query<(&Transform, &mut ShootTimer), With<Player>>,
 ) {
@@ -72,9 +74,12 @@ pub fn player_shoot(
                 Velocity { direction: Vec2::new(0.0, 1.0) },
                 Bullet,
             ));
+            commands.spawn((
+                AudioPlayer(game_sounds.shoot.clone()),
+                PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.7)),
+            ));
             shoot_timer.0.reset();
         }
     }
 }
-
 

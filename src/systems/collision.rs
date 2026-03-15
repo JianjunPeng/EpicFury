@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::audio::{AudioPlayer, PlaybackSettings, Volume};
 use bevy::window::PrimaryWindow;
 use crate::components::*;
 use crate::resources::*;
@@ -8,6 +9,7 @@ use crate::resources::*;
 pub fn bullet_enemy_collision(
     mut commands: Commands,
     mut score: ResMut<Score>,
+    game_sounds: Res<GameSounds>,
     bullet_query: Query<(Entity, &Transform, &Sprite), With<Bullet>>,
     enemy_query: Query<(Entity, &Transform, &Sprite), With<Enemy>>,
 ) {
@@ -39,6 +41,10 @@ pub fn bullet_enemy_collision(
                         ViewVisibility::default(),
                         Explosion(Timer::from_seconds(0.3, TimerMode::Once)),
                     ));
+                    commands.spawn((
+                        AudioPlayer(game_sounds.explosion.clone()),
+                        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.8)),
+                    ));
                 }
             }
         }
@@ -50,6 +56,7 @@ pub fn bullet_enemy_collision(
 pub fn player_enemy_collision(
     mut commands: Commands,
     mut game_over: ResMut<GameOver>,
+    game_sounds: Res<GameSounds>,
     background_music_query: Query<Entity, With<BackgroundMusic>>,
     player_query: Query<(Entity, &Transform, &Sprite), With<Player>>,
     enemy_query: Query<(Entity, &Transform, &Sprite), With<Enemy>>,
@@ -80,6 +87,10 @@ pub fn player_enemy_collision(
                         for entity in &background_music_query {
                             commands.entity(entity).despawn();
                         }
+                        commands.spawn((
+                            AudioPlayer(game_sounds.explosion.clone()),
+                            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.8)),
+                        ));
 
                         // 显示 Game Over 文本（居中）
                         commands.spawn((
