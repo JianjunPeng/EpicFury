@@ -15,7 +15,7 @@ pub fn player_movement(
 ) {
     if game_over.0 { return; }
 
-    let speed = 500.0;
+    let speed = 600.0;
     let delta = time.delta_secs();
     let player_half_size = 25.0;
 
@@ -82,4 +82,3 @@ pub fn player_shoot(
         }
     }
 }
-

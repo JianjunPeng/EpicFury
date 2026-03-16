@@ -64,14 +64,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // 玩家飞机（独立实体）
     commands.spawn((
         Sprite {
-            color: Color::srgb(0.0, 0.0, 1.0),
-            custom_size: Some(Vec2::new(50.0, 50.0)),
+            image: asset_server.load("images/player.png"),
+            custom_size: Some(Vec2::new(64.0, 64.0)),
             ..default()
         },
         Transform::from_xyz(0.0, -200.0, 0.0),
-        GlobalTransform::default(),
-        Visibility::Visible,
-        ViewVisibility::default(),
         Player,
         ShootTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
     ));
