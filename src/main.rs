@@ -70,7 +70,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
         Transform::from_xyz(0.0, -200.0, 0.0),
         Player,
-        ShootTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
+        ShootTimer(Timer::from_seconds(0.12, TimerMode::Repeating)),
     ));
 
     commands.insert_resource(EnemySpawnTimer(Timer::from_seconds(1.2, TimerMode::Repeating)));

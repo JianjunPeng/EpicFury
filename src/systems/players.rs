@@ -64,7 +64,7 @@ pub fn player_shoot(
             commands.spawn((
                 Sprite {
                     color: Color::srgb(1.0, 0.3, 0.3),
-                    custom_size: Some(Vec2::new(8.0, 24.0)),
+                    custom_size: Some(Vec2::new(8.0, 8.0)),
                     ..default()
                 },
                 Transform::from_translation(spawn_pos),

@@ -11,6 +11,7 @@ pub fn spawn_enemies(
     game_over: ResMut<GameOver>,
     mut timer: ResMut<EnemySpawnTimer>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
     if game_over.0 { return; }
@@ -22,7 +23,7 @@ pub fn spawn_enemies(
             let spawn_x = rand::thread_rng().gen_range(-half_width + 30.0..half_width - 30.0);
             commands.spawn((
                 Sprite {
-                    color: Color::srgb(0.0, 0.8, 0.3),
+                    image: asset_server.load("images/enemy.png"),
                     custom_size: Some(Vec2::new(40.0, 40.0)),
                     ..default()
                 },
